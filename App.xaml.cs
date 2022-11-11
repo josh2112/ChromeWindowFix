@@ -52,7 +52,7 @@ namespace ChromeWindowFix
 
             windowPositionFixer = new WindowPositionFixer(
                 p => p.MainWindowTitle.Contains( "Chrome" ) && p.ProcessName.Contains( "chrome" ),
-                ( windowRect, desktopRect ) => windowRect.Height == desktopRect.Height && windowRect.Width != desktopRect.Width && windowRect.Top == 0,
+                ( windowRect, desktopRect ) => windowRect.Width != desktopRect.Width && windowRect.Top == 0,
                 r => new System.Drawing.Rectangle( r.X, r.Y + config.adjust.top, r.Width, r.Height - config.adjust.top ));
         }
     }
