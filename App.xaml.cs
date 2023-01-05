@@ -1,15 +1,14 @@
 ﻿using CommunityToolkit.Mvvm.Input;
 using Hardcodet.Wpf.TaskbarNotification;
-using System.Threading.Tasks;
-using System.Threading;
 using System;
-using System.Windows;
-using System.Text.Json;
+using System.Collections.Generic;
 using System.IO;
-using System.Diagnostics;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Windows.Media.Animation;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Threading;
 
 namespace ChromeWindowFix
 {
@@ -22,7 +21,9 @@ namespace ChromeWindowFix
 
         public RelayCommand ExitCommand { get; }
 
-        private WindowPositionFixer? windowPositionFixer;
+        public List<WindowPositionFixer>? Fixers { get; private set; }
+
+        private DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds( 1 ) };
 
         public App()
         {
@@ -40,20 +41,23 @@ namespace ChromeWindowFix
             taskbarIcon = (TaskbarIcon)FindResource( "taskbarIcon" );
             taskbarIcon.DataContext = this;
 
-            var config = JsonSerializerExtensions.DeserializeAnonymousType( File.ReadAllText( "config.json" ),
-                new { adjust = new { top = 0 } } );
+            Fixers = JsonSerializer.Deserialize<List<WindowPositionFixer>>( File.ReadAllText( "config.json" ),
+                new JsonSerializerOptions {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    Converters = { new JsonStringEnumConverter() }
+                } );
 
-            if( config == null )
+            if( Fixers == null )
             {
                 MessageBox.Show( "Unable to read config file" );
                 Shutdown();
                 return;
             }
 
-            windowPositionFixer = new WindowPositionFixer(
-                p => p.MainWindowTitle.Contains( "Chrome" ) && p.ProcessName.Contains( "chrome" ),
-                ( windowRect, desktopRect ) => windowRect.Width != desktopRect.Width && windowRect.Top == 0,
-                r => new System.Drawing.Rectangle( r.X, r.Y + config.adjust.top, r.Width, r.Height - config.adjust.top ));
+            timer.Tick += ( s, e ) => {
+                foreach( var fixer in Fixers ) fixer.Run();
+            };
+            timer.Start();
         }
     }
 
@@ -88,11 +92,5 @@ namespace ChromeWindowFix
         }
 
         public void Dispose() => eventWaitHandle.Close();
-    }
-
-    public static partial class JsonSerializerExtensions
-    {
-        public static T? DeserializeAnonymousType<T>( string json, T _, JsonSerializerOptions? options = default )
-            => JsonSerializer.Deserialize<T>( json, options );
     }
 }

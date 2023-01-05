@@ -1,5 +1,21 @@
-{
-  "adjust": {
-    "top":  -9
-  }
-}
+[
+    {
+        "name": "Chrome",
+        "match": [
+            {
+                "name": "processName",
+                "condition": "contains",
+                "value": "chrome"
+            },
+            {
+                "name": "mainWindowTitle",
+                "condition": "contains",
+                "value": "Chrome"
+            }
+        ],
+        "adjust": {
+            "top":  -9,
+            "bottom": 0
+        }
+    }
+]

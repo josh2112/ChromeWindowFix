@@ -1,45 +1,78 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Drawing;
-using System.Windows.Threading;
 
 namespace ChromeWindowFix
 {
-    internal class WindowPositionFixer
+
+    public struct AdjustRect
     {
-        private Func<Process, bool> processSelector;
-        private Func<Rectangle, Rectangle, bool> windowNeedsFixSelector;
-        private Func<Rectangle, Rectangle> fixWindow;
+        public int Top { get; set; }
+        public int Bottom { get; set; }
+    }
 
-        private DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds( 1 ) };
+    public enum MatchConditionVariable { processName, mainWindowTitle }
+    public enum MatchConditionComparison { contains }
 
-        public WindowPositionFixer( Func<Process, bool> processSelector, Func<Rectangle, Rectangle, bool> windowNeedsFixSelector,
-            Func<Rectangle, Rectangle> fixWindow )
-        {
-            this.processSelector = processSelector;
-            this.windowNeedsFixSelector = windowNeedsFixSelector;
-            this.fixWindow = fixWindow;
+    public class MatchCondition
+    {
+        public MatchConditionVariable Name { get; set; }
+        public MatchConditionComparison Condition { get; set; }
+        public string Value { get; set; } = "";
+    }
 
-            timer.Tick += (s,e) => FixWindows();
-            timer.Start();
-        }
+    public class WindowPositionFixer
+    {
+        public string Name { get; set; } = "";
 
-        private void FixWindows()
+        public List<MatchCondition> Match { get; set; } = new List<MatchCondition>();
+
+        public AdjustRect Adjust { get; set; }
+
+        public void Run()
         {
             SystemParametersInfo( SystemParameters.SPI_GETWORKAREA, 0, out RECT tmp, 0 );
             var desktopRect = new Rectangle( tmp.Left, tmp.Top, tmp.Right - tmp.Left, tmp.Bottom - tmp.Top );
 
-            foreach( var hwnd in Process.GetProcesses().Where( p => processSelector( p ) ).Select( p => p.MainWindowHandle ) )
+            foreach( var hwnd in Process.GetProcesses().Where( p => ShouldSelectProcess( p ) ).Select( p => p.MainWindowHandle ) )
             {
                 DwmGetWindowAttribute( hwnd, DwmWindowAttribute.DWMWA_EXTENDED_FRAME_BOUNDS, out tmp, Marshal.SizeOf( typeof( RECT ) ) );
                 var windowRect = new Rectangle( tmp.Left, tmp.Top, tmp.Right - tmp.Left, tmp.Bottom - tmp.Top );
 
-                if( windowNeedsFixSelector( windowRect, desktopRect ) )
-                    SetWindow( hwnd, windowRect, fixWindow( windowRect ) );
+                if( DoesWindowNeedFix( windowRect, desktopRect ) )
+                    SetWindow( hwnd, windowRect, FixWindow( windowRect, desktopRect ) );
             }
         }
+
+        private bool ShouldSelectProcess( Process p )
+        {
+            foreach( MatchCondition cond in Match )
+            {
+                string val = cond.Name switch {
+                    MatchConditionVariable.mainWindowTitle => p.MainWindowTitle,
+                    MatchConditionVariable.processName => p.ProcessName,
+                    _ => ""
+                };
+
+                bool result = cond.Condition switch {
+                    MatchConditionComparison.contains => val.Contains( cond.Value ),
+                    _ => false
+                };
+                if( !result ) return false;
+            }
+
+            return true;
+        }
+
+        private bool DoesWindowNeedFix( Rectangle windowRect, Rectangle desktopRect ) =>
+            !(windowRect.Left == desktopRect.Left && windowRect.Right == desktopRect.Right) &&
+            (windowRect.Top > -10 && windowRect.Top < 10);
+
+        private Rectangle FixWindow( Rectangle windowRect, Rectangle desktopRect ) =>
+            new Rectangle( windowRect.X, Adjust.Top, windowRect.Width, desktopRect.Height - Adjust.Top );
 
         public static void SetWindow( IntPtr hwnd, Rectangle originalRect, Rectangle newRect )
         {
