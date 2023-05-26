@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <PackageIcon>app.png</PackageIcon>
-    <Version>1.1</Version>
+    <Version>1.2</Version>
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 

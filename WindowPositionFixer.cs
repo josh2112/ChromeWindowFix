@@ -47,7 +47,7 @@ namespace ChromeWindowFix
             }
         }
 
-        private bool ShouldSelectProcess( Process p )
+        bool ShouldSelectProcess( Process p )
         {
             foreach( MatchCondition cond in Match )
             {
@@ -67,14 +67,14 @@ namespace ChromeWindowFix
             return true;
         }
 
-        private bool DoesWindowNeedFix( Rectangle windowRect, Rectangle desktopRect ) =>
+        bool DoesWindowNeedFix( Rectangle windowRect, Rectangle desktopRect ) =>
             !(windowRect.Left == desktopRect.Left && windowRect.Right == desktopRect.Right) &&
             (windowRect.Top > -10 && windowRect.Top < 10);
 
-        private Rectangle FixWindow( Rectangle windowRect, Rectangle desktopRect ) =>
+        Rectangle FixWindow( Rectangle windowRect, Rectangle desktopRect ) =>
             new Rectangle( windowRect.X, Adjust.Top, windowRect.Width, desktopRect.Height - Adjust.Top );
 
-        public static void SetWindow( IntPtr hwnd, Rectangle originalRect, Rectangle newRect )
+        static void SetWindow( IntPtr hwnd, Rectangle originalRect, Rectangle newRect )
         {
             GetWindowRect( hwnd, out RECT originalWithShadow );
 
@@ -88,26 +88,29 @@ namespace ChromeWindowFix
             int width = (newRect.Right + shadow.Right) - (newRect.Left + shadow.Left);
             int height = (newRect.Bottom + shadow.Bottom) - (newRect.Top - shadow.Top);
 
-            SetWindowPos( hwnd, IntPtr.Zero, newRect.Left + shadow.Left, newRect.Top + shadow.Top, width, height, 0x400 );
+            SetWindowPos( hwnd, IntPtr.Zero, newRect.Left + shadow.Left, newRect.Top + shadow.Top, width, height,
+                SetWindowPosFlags.SWP_NOZORDER | SetWindowPosFlags.SWP_NOACTIVATE );
         }
 
         [DllImport( "dwmapi.dll" )]
         static extern int DwmGetWindowAttribute( IntPtr hWnd, DwmWindowAttribute dwAttribute, out RECT lpRect, int cbAttribute );
         
         [StructLayout( LayoutKind.Sequential )]
-        public struct RECT { public int Left, Top, Right, Bottom; }
+        struct RECT { public int Left, Top, Right, Bottom; }
 
-        public enum DwmWindowAttribute { DWMWA_EXTENDED_FRAME_BOUNDS = 9 }
+        enum DwmWindowAttribute { DWMWA_EXTENDED_FRAME_BOUNDS = 9 }
 
         [DllImport( "user32.dll" )]
         static extern bool SystemParametersInfo( SystemParameters uiAction, uint uiParam, out RECT pvParam, uint fWinIni );
 
         enum SystemParameters { SPI_GETWORKAREA = 0x0030 };
 
-        [DllImport( "user32.dll" )]
-        internal static extern void GetWindowRect( IntPtr hwnd, out RECT lpRect );
+        enum SetWindowPosFlags { SWP_NOZORDER = 0x0004, SWP_NOACTIVATE = 0x0010 };
 
         [DllImport( "user32.dll" )]
-        internal static extern void SetWindowPos( IntPtr hwnd, IntPtr hwndInsertAfter, int X, int Y, int nWidth, int nHeight, uint flags );
+        static extern void GetWindowRect( IntPtr hwnd, out RECT lpRect );
+
+        [DllImport( "user32.dll" )]
+        static extern void SetWindowPos( IntPtr hwnd, IntPtr hwndInsertAfter, int X, int Y, int nWidth, int nHeight, SetWindowPosFlags flags );
     }
 }
